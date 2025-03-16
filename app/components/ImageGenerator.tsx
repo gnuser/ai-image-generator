@@ -21,6 +21,7 @@ export default function ImageGenerator({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedImageUrls, setGeneratedImageUrls] = useState<string[]>([]);
+  const [generationProgress, setGenerationProgress] = useState<number[]>([]);
   const [showApiKey, setShowApiKey] = useState(false);
 
   const { register, handleSubmit, watch, setValue } = useForm<FormData>({
@@ -58,11 +59,17 @@ export default function ImageGenerator({
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     setError(null);
+    setGeneratedImageUrls([]);
+    setGenerationProgress([0, 0, 0, 0]); // Reset progress for all 4 images
 
     try {
       const fullPrompt = getFullPrompt();
 
-      const response = await fetch("/api/generate-image", {
+      // Create a controller to abort the fetch request if needed
+      const controller = new AbortController();
+
+      // Fetch options
+      const fetchOptions = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -72,23 +79,95 @@ export default function ImageGenerator({
           size: data.size,
           apiKey: data.apiKey,
         }),
-      });
+        signal: controller.signal,
+      };
+
+      // Function to handle streaming response
+      const handleStream = async (response: Response) => {
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error("Response body is not readable");
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          // Decode the chunk and add it to the buffer
+          buffer += decoder.decode(value, { stream: true });
+
+          // Process complete SSE events
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop() || ""; // Keep the last incomplete chunk in the buffer
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const eventData = JSON.parse(line.substring(6));
+
+                // Handle different event types
+                if (eventData.error) {
+                  setError(eventData.error);
+                } else if (eventData.imageUrl) {
+                  // Add the image to our state array
+                  setGeneratedImageUrls((prev) => {
+                    const newUrls = [...prev];
+                    newUrls[eventData.index] = eventData.imageUrl;
+                    return newUrls;
+                  });
+
+                  // Add to gallery
+                  addImage(eventData.imageUrl);
+
+                  // Update progress
+                  setGenerationProgress((prev) => {
+                    const newProgress = [...prev];
+                    newProgress[eventData.index] = 100; // 100% complete
+                    return newProgress;
+                  });
+                } else if (eventData.status === "generating") {
+                  // Update progress to show we're working on this image
+                  setGenerationProgress((prev) => {
+                    const newProgress = [...prev];
+                    newProgress[eventData.index] = 50; // 50% - in progress
+                    return newProgress;
+                  });
+                } else if (eventData.status === "complete") {
+                  // All done
+                  setIsLoading(false);
+                }
+              } catch (e) {
+                console.error("Error parsing SSE data:", e);
+              }
+            }
+          }
+        }
+      };
+
+      // Start the request
+      const response = await fetch("/api/generate-image", fetchOptions);
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate image");
+        if (
+          response.headers.get("Content-Type")?.includes("application/json")
+        ) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to generate image");
+        } else {
+          throw new Error(`HTTP error ${response.status}`);
+        }
       }
 
-      const result = await response.json();
-      setGeneratedImageUrls(result.imageUrls);
-
-      // Add all generated images to the gallery
-      result.imageUrls.forEach((url: string) => {
-        addImage(url);
-      });
+      // Handle the streaming response
+      await handleStream(response);
     } catch (err: any) {
       setError(err.message || "An error occurred while generating the image");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -192,25 +271,46 @@ export default function ImageGenerator({
           </div>
         )}
 
-        {generatedImageUrls.length > 0 && !isLoading && (
-          <div className="mt-4">
-            <h3 className="font-medium mb-2">Generated Images:</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {generatedImageUrls.map((imageUrl, index) => (
-                <div
-                  key={index}
-                  className="relative aspect-square w-full overflow-hidden rounded-lg"
-                >
+        {/* Display images as they are generated */}
+        <div className="mt-4">
+          <h3 className="font-medium mb-2">Generated Images:</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="relative aspect-square w-full overflow-hidden rounded-lg bg-gray-100"
+              >
+                {generatedImageUrls[index] ? (
                   <img
-                    src={imageUrl}
+                    src={generatedImageUrls[index]}
                     alt={`Generated image ${index + 1}`}
                     className="object-cover w-full h-full"
                   />
-                </div>
-              ))}
-            </div>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    {generationProgress[index] > 0 ? (
+                      <div className="text-center">
+                        <div
+                          className="radial-progress text-primary"
+                          style={
+                            {
+                              "--value": generationProgress[index],
+                            } as React.CSSProperties
+                          }
+                        >
+                          {generationProgress[index]}%
+                        </div>
+                        <p className="text-sm mt-2">Image {index + 1}</p>
+                      </div>
+                    ) : (
+                      <p className="text-gray-400">Waiting...</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
