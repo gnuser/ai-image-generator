@@ -50,6 +50,13 @@ const STYLE_PRESETS = [
       "traditional Chinese ink painting style, Three Kingdoms era characters, historical Chinese warriors, dramatic poses, ornate armor, ancient Chinese aesthetic",
   },
   {
+    id: "kids-illustration",
+    name: "Kids' Illustration",
+    description: "Colorful, friendly style perfect for children aged 6-10",
+    prompt:
+      "children's book illustration style, bright cheerful colors, simplified details, educational, friendly characters with expressive faces, slightly stylized proportions, clear outlines, engaging composition, age-appropriate for elementary school children, playful but informative",
+  },
+  {
     id: "custom",
     name: "Custom Style",
     description: "Define your own custom style",
