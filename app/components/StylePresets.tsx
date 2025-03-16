@@ -42,6 +42,14 @@ const STYLE_PRESETS = [
       "oil painting style, rich textures, classical, detailed brushstrokes, artistic",
   },
   {
+    id: "three-kingdoms",
+    name: "三国人物",
+    description:
+      "Traditional Chinese painting style depicting Three Kingdoms characters",
+    prompt:
+      "traditional Chinese ink painting style, Three Kingdoms era characters, historical Chinese warriors, dramatic poses, ornate armor, ancient Chinese aesthetic",
+  },
+  {
     id: "custom",
     name: "Custom Style",
     description: "Define your own custom style",
