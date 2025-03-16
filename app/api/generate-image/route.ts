@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-// Initialize the OpenAI client with API key from environment variables
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(request: Request) {
   try {
     // Parse the request body
     const body = await request.json();
-    const { prompt, size = "1024x1024" } = body;
+    const { prompt, size = "1024x1024", apiKey } = body;
 
     // Validate the request
     if (!prompt) {
@@ -19,6 +14,20 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Validate API key
+    const openaiApiKey = apiKey || process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      return NextResponse.json(
+        { error: "OpenAI API key is required" },
+        { status: 400 }
+      );
+    }
+
+    // Initialize the OpenAI client with the provided API key
+    const openai = new OpenAI({
+      apiKey: openaiApiKey,
+    });
 
     // Validate size parameter
     const validSizes = ["1024x1024", "1024x1792", "1792x1024"];

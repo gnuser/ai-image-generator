@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 interface ImageGeneratorProps {
@@ -11,6 +11,7 @@ interface ImageGeneratorProps {
 interface FormData {
   prompt: string;
   size: string;
+  apiKey: string;
 }
 
 export default function ImageGenerator({
@@ -20,15 +21,33 @@ export default function ImageGenerator({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedImageUrls, setGeneratedImageUrls] = useState<string[]>([]);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   const { register, handleSubmit, watch, setValue } = useForm<FormData>({
     defaultValues: {
       prompt: "",
       size: "1024x1024",
+      apiKey: "",
     },
   });
 
+  // Load the API key from localStorage on component mount
+  useEffect(() => {
+    const savedApiKey = localStorage.getItem("openai-api-key");
+    if (savedApiKey) {
+      setValue("apiKey", savedApiKey);
+    }
+  }, [setValue]);
+
   const currentPrompt = watch("prompt");
+  const apiKey = watch("apiKey");
+
+  // Save API key to localStorage when it changes
+  useEffect(() => {
+    if (apiKey) {
+      localStorage.setItem("openai-api-key", apiKey);
+    }
+  }, [apiKey]);
 
   // Apply the style to the prompt
   const getFullPrompt = () => {
@@ -51,6 +70,7 @@ export default function ImageGenerator({
         body: JSON.stringify({
           prompt: fullPrompt,
           size: data.size,
+          apiKey: data.apiKey,
         }),
       });
 
@@ -79,6 +99,29 @@ export default function ImageGenerator({
         <h2 className="card-title text-black">Generate Image</h2>
 
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">OpenAI API Key</span>
+              <button
+                type="button"
+                className="btn btn-xs btn-ghost"
+                onClick={() => setShowApiKey(!showApiKey)}
+              >
+                {showApiKey ? "Hide" : "Show"}
+              </button>
+            </label>
+            <input
+              type={showApiKey ? "text" : "password"}
+              className="input input-bordered text-black"
+              placeholder="Enter your OpenAI API key"
+              {...register("apiKey")}
+            />
+            <div className="text-xs text-gray-500 mt-1">
+              Your API key is stored locally in your browser and never sent to
+              our servers.
+            </div>
+          </div>
+
           <div className="form-control">
             <label className="label">
               <span className="label-text">Prompt</span>
@@ -118,10 +161,16 @@ export default function ImageGenerator({
           <button
             type="submit"
             className={`btn btn-primary mt-4 ${isLoading ? "loading" : ""}`}
-            disabled={isLoading || !currentPrompt}
+            disabled={isLoading || !currentPrompt || !apiKey}
           >
             {isLoading ? "Generating..." : "Generate Image"}
           </button>
+
+          {!apiKey && (
+            <div className="text-sm text-orange-500 mt-2">
+              Please enter your OpenAI API key to generate images
+            </div>
+          )}
         </form>
 
         {error && (
