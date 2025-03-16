@@ -36,15 +36,15 @@ export async function POST(request: Request) {
     const response = await openai.images.generate({
       model: "dall-e-3",
       prompt,
-      n: 1,
+      n: 4,
       size: size as "1024x1024" | "1024x1792" | "1792x1024",
     });
 
-    // Extract the image URL from the response
-    const imageUrl = response.data[0].url;
+    // Extract all image URLs from the response
+    const imageUrls = response.data.map((image) => image.url);
 
-    // Return the image URL
-    return NextResponse.json({ imageUrl });
+    // Return all image URLs
+    return NextResponse.json({ imageUrls });
   } catch (error: any) {
     console.error("Error generating image:", error);
 

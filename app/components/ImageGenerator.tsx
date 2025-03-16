@@ -19,9 +19,7 @@ export default function ImageGenerator({
 }: ImageGeneratorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
-    null
-  );
+  const [generatedImageUrls, setGeneratedImageUrls] = useState<string[]>([]);
 
   const { register, handleSubmit, watch, setValue } = useForm<FormData>({
     defaultValues: {
@@ -62,8 +60,12 @@ export default function ImageGenerator({
       }
 
       const result = await response.json();
-      setGeneratedImageUrl(result.imageUrl);
-      addImage(result.imageUrl);
+      setGeneratedImageUrls(result.imageUrls);
+
+      // Add all generated images to the gallery
+      result.imageUrls.forEach((url: string) => {
+        addImage(url);
+      });
     } catch (err: any) {
       setError(err.message || "An error occurred while generating the image");
     } finally {
@@ -141,15 +143,22 @@ export default function ImageGenerator({
           </div>
         )}
 
-        {generatedImageUrl && !isLoading && (
+        {generatedImageUrls.length > 0 && !isLoading && (
           <div className="mt-4">
-            <h3 className="font-medium mb-2">Generated Image:</h3>
-            <div className="relative aspect-square w-full overflow-hidden rounded-lg">
-              <img
-                src={generatedImageUrl}
-                alt="Generated image"
-                className="object-cover w-full h-full"
-              />
+            <h3 className="font-medium mb-2">Generated Images:</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {generatedImageUrls.map((imageUrl, index) => (
+                <div
+                  key={index}
+                  className="relative aspect-square w-full overflow-hidden rounded-lg"
+                >
+                  <img
+                    src={imageUrl}
+                    alt={`Generated image ${index + 1}`}
+                    className="object-cover w-full h-full"
+                  />
+                </div>
+              ))}
             </div>
           </div>
         )}
