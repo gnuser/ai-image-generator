@@ -33,6 +33,7 @@ interface FormData {
   prompt: string;
   size: string;
   apiKey: string;
+  referenceImageUrl: string;
 }
 
 export default function ImageGenerator({
@@ -47,12 +48,17 @@ export default function ImageGenerator({
   const [generationProgress, setGenerationProgress] = useState<number[]>([]);
   const [showApiKey, setShowApiKey] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [useReferenceImage, setUseReferenceImage] = useState(false);
+  const [referenceImagePreview, setReferenceImagePreview] = useState<
+    string | null
+  >(null);
 
   const { register, handleSubmit, watch, setValue } = useForm<FormData>({
     defaultValues: {
       prompt: "",
       size: "1024x1024",
       apiKey: "",
+      referenceImageUrl: "",
     },
   });
 
@@ -67,6 +73,16 @@ export default function ImageGenerator({
   const currentPrompt = watch("prompt");
   const currentSize = watch("size");
   const apiKey = watch("apiKey");
+  const referenceImageUrl = watch("referenceImageUrl");
+
+  // Update reference image preview when URL changes
+  useEffect(() => {
+    if (useReferenceImage && referenceImageUrl) {
+      setReferenceImagePreview(referenceImageUrl);
+    } else {
+      setReferenceImagePreview(null);
+    }
+  }, [referenceImageUrl, useReferenceImage]);
 
   // Save API key to localStorage when it changes
   useEffect(() => {
@@ -77,8 +93,19 @@ export default function ImageGenerator({
 
   // Apply the style to the prompt
   const getFullPrompt = () => {
-    if (!currentStyle || !currentPrompt) return currentPrompt;
-    return `${currentPrompt}, ${currentStyle}`;
+    if (!currentPrompt) return "";
+
+    // If using a reference image, mention it in the prompt
+    if (useReferenceImage && referenceImageUrl) {
+      return `${currentPrompt}, in the same style as the reference image`;
+    }
+
+    // Otherwise use the text-based style
+    if (currentStyle) {
+      return `${currentPrompt}, ${currentStyle}`;
+    }
+
+    return currentPrompt;
   };
 
   const onSubmit = async (data: FormData) => {
@@ -103,6 +130,7 @@ export default function ImageGenerator({
           prompt: fullPrompt,
           size: data.size,
           apiKey: data.apiKey,
+          referenceImageUrl: useReferenceImage ? data.referenceImageUrl : null,
         }),
         signal: controller.signal,
       };
@@ -148,10 +176,14 @@ export default function ImageGenerator({
                   });
 
                   // Add to gallery with additional metadata
+                  const effectiveStyle = useReferenceImage
+                    ? `Reference image: ${data.referenceImageUrl}`
+                    : currentStyle;
+
                   addImage(
                     eventData.imageUrl,
                     data.prompt,
-                    currentStyle,
+                    effectiveStyle,
                     data.size
                   );
 
@@ -207,12 +239,29 @@ export default function ImageGenerator({
       const { prompt, size } = onLoadHistoryItem(item);
       setValue("prompt", prompt);
       setValue("size", size);
+
+      // Check if the style is a reference image URL
+      if (item.style && item.style.startsWith("Reference image: ")) {
+        const referenceUrl = item.style.replace("Reference image: ", "");
+        setValue("referenceImageUrl", referenceUrl);
+        setUseReferenceImage(true);
+      } else {
+        setValue("referenceImageUrl", "");
+        setUseReferenceImage(false);
+      }
+
       setShowHistory(false); // Close history panel after selection
     }
   };
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
+  };
+
+  // Function to use an existing generated image as reference
+  const useAsReference = (imageUrl: string) => {
+    setValue("referenceImageUrl", imageUrl);
+    setUseReferenceImage(true);
   };
 
   return (
@@ -264,7 +313,52 @@ export default function ImageGenerator({
               placeholder="Describe what you want to see in the image..."
               {...register("prompt", { required: true })}
             />
-            {currentStyle && (
+
+            {/* Style selection method toggle */}
+            <div className="mt-4 flex items-center">
+              <label className="cursor-pointer label justify-start gap-2">
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary"
+                  checked={useReferenceImage}
+                  onChange={() => setUseReferenceImage(!useReferenceImage)}
+                />
+                <span className="label-text">
+                  Use reference image for style
+                </span>
+              </label>
+            </div>
+
+            {/* Reference image URL input */}
+            {useReferenceImage && (
+              <div className="mt-2">
+                <input
+                  type="text"
+                  className="input input-bordered w-full text-black"
+                  placeholder="Enter reference image URL"
+                  {...register("referenceImageUrl")}
+                />
+
+                {/* Reference image preview */}
+                {referenceImagePreview && (
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500 mb-2">
+                      Reference image:
+                    </p>
+                    <div className="relative w-32 h-32 overflow-hidden rounded-lg">
+                      <img
+                        src={referenceImagePreview}
+                        alt="Style reference"
+                        className="object-cover w-full h-full"
+                        onError={() => setReferenceImagePreview(null)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!useReferenceImage && currentStyle && (
               <div className="mt-2 text-sm text-gray-500">
                 <span className="font-medium">
                   {currentStyle.includes("combined with")
@@ -274,7 +368,8 @@ export default function ImageGenerator({
                 {currentStyle}
               </div>
             )}
-            {getFullPrompt() && currentStyle && (
+
+            {getFullPrompt() && (
               <div className="mt-2 p-2 bg-gray-100 rounded-md text-sm text-black">
                 <span className="font-medium">Full prompt:</span>{" "}
                 {getFullPrompt()}
@@ -334,7 +429,12 @@ export default function ImageGenerator({
           <button
             type="submit"
             className={`btn btn-primary mt-4 ${isLoading ? "loading" : ""}`}
-            disabled={isLoading || !currentPrompt || !apiKey}
+            disabled={
+              isLoading ||
+              !currentPrompt ||
+              !apiKey ||
+              (useReferenceImage && !referenceImageUrl)
+            }
           >
             {isLoading ? "Generating..." : "Generate Image"}
           </button>
@@ -342,6 +442,12 @@ export default function ImageGenerator({
           {!apiKey && (
             <div className="text-sm text-orange-500 mt-2">
               Please enter your OpenAI API key to generate images
+            </div>
+          )}
+
+          {useReferenceImage && !referenceImageUrl && (
+            <div className="text-sm text-orange-500 mt-2">
+              Please provide a reference image URL
             </div>
           )}
         </form>
@@ -367,7 +473,9 @@ export default function ImageGenerator({
 
         {/* Display images as they are generated */}
         <div className="mt-4">
-          <h3 className="font-medium mb-2">Generated Images:</h3>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-medium">Generated Images:</h3>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <div
@@ -375,11 +483,23 @@ export default function ImageGenerator({
                 className="relative aspect-square w-full overflow-hidden rounded-lg bg-gray-100"
               >
                 {generatedImageUrls[index] ? (
-                  <img
-                    src={generatedImageUrls[index]}
-                    alt={`Generated image ${index + 1}`}
-                    className="object-cover w-full h-full"
-                  />
+                  <div className="group relative h-full">
+                    <img
+                      src={generatedImageUrls[index]}
+                      alt={`Generated image ${index + 1}`}
+                      className="object-cover w-full h-full"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() =>
+                          useAsReference(generatedImageUrls[index])
+                        }
+                      >
+                        Use as Reference
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
                     {generationProgress[index] > 0 ? (

@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     try {
       // Parse the request body
       const body = await request.json();
-      const { prompt, size = "1024x1024", apiKey } = body;
+      const { prompt, size = "1024x1024", apiKey, referenceImageUrl } = body;
 
       // Validate the request
       if (!prompt) {
@@ -72,6 +72,43 @@ export async function POST(request: Request) {
         return;
       }
 
+      // Validate reference image URL if provided
+      if (referenceImageUrl) {
+        try {
+          // This is a simple validation to check if the URL is valid
+          new URL(referenceImageUrl);
+
+          // Log that we're using a reference image
+          console.log(`Using reference image URL: ${referenceImageUrl}`);
+
+          // If you want to verify the image exists and is accessible,
+          // you could make a HEAD request here, but we'll skip that for now
+        } catch (error) {
+          writer.write(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                error: "Invalid reference image URL",
+              })}\n\n`
+            )
+          );
+          writer.close();
+          return;
+        }
+      }
+
+      // Enhance the prompt with reference image information if provided
+      let enhancedPrompt = prompt;
+      if (referenceImageUrl) {
+        // Note: OpenAI API doesn't directly support image-to-image style transfer,
+        // so we're enhancing the prompt to guide it to use the style
+        enhancedPrompt = `${prompt} 
+          
+Important: Please generate an image that closely mimics the artistic style, composition techniques, color palette, 
+and visual aesthetic of the reference image at: ${referenceImageUrl}. 
+
+The content should be based on my description, but the visual style should match the reference.`;
+      }
+
       // Generate 4 images one by one
       for (let i = 0; i < 4; i++) {
         try {
@@ -84,9 +121,13 @@ export async function POST(request: Request) {
 
           const response = await openai.images.generate({
             model: "dall-e-3",
-            prompt,
+            prompt: enhancedPrompt,
             n: 1,
             size: size as "1024x1024" | "1024x1792" | "1792x1024",
+            // We could use the quality parameter to improve results for style matching
+            quality: referenceImageUrl ? "hd" : "standard",
+            // A higher style_preset might help with consistency across images
+            style: "vivid",
           });
 
           if (response.data[0].url) {
