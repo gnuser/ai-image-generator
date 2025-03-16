@@ -1,11 +1,45 @@
 "use client";
 
-interface GalleryProps {
-  images: string[];
+import { useState } from "react";
+
+// Interface for history items
+interface HistoryItem {
+  id: string;
+  prompt: string;
+  style: string;
+  size: string;
+  imageUrls: string[];
+  timestamp: number;
 }
 
-export default function Gallery({ images }: GalleryProps) {
-  if (images.length === 0) {
+interface GalleryProps {
+  images: string[];
+  history?: HistoryItem[];
+  onLoadHistoryItem?: (item: HistoryItem) => {
+    prompt: string;
+    style: string;
+    size: string;
+  };
+}
+
+export default function Gallery({
+  images,
+  history = [],
+  onLoadHistoryItem,
+}: GalleryProps) {
+  const [showFullHistory, setShowFullHistory] = useState(false);
+
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString();
+  };
+
+  const handleLoadHistoryItem = (item: HistoryItem) => {
+    if (onLoadHistoryItem) {
+      onLoadHistoryItem(item);
+    }
+  };
+
+  if (images.length === 0 && history.length === 0) {
     return (
       <div className="card bg-base-100 shadow-xl h-full">
         <div className="card-body flex flex-col items-center justify-center text-center">
@@ -35,25 +69,103 @@ export default function Gallery({ images }: GalleryProps) {
   return (
     <div className="card bg-base-100 shadow-xl">
       <div className="card-body">
-        <h2 className="card-title text-black">Your Gallery</h2>
-        <p className="text-sm text-gray-500 mb-4">
-          {images.length} {images.length === 1 ? "image" : "images"} generated
-        </p>
-
-        <div className="grid grid-cols-2 gap-4">
-          {images.map((imageUrl, index) => (
-            <div
-              key={index}
-              className="relative aspect-square overflow-hidden rounded-lg"
+        <div className="flex justify-between items-center">
+          <h2 className="card-title text-black">Your Gallery</h2>
+          {history.length > 0 && (
+            <button
+              className="btn btn-xs btn-ghost"
+              onClick={() => setShowFullHistory(!showFullHistory)}
             >
-              <img
-                src={imageUrl}
-                alt={`Generated image ${index + 1}`}
-                className="object-cover w-full h-full"
-              />
-            </div>
-          ))}
+              {showFullHistory ? "Hide History" : "Show All History"}
+            </button>
+          )}
         </div>
+
+        {showFullHistory ? (
+          <div>
+            <p className="text-sm text-gray-500 mb-4">
+              {history.length}{" "}
+              {history.length === 1 ? "saved generation" : "saved generations"}
+            </p>
+
+            <div className="space-y-4">
+              {history.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-base-200 p-4 rounded-lg cursor-pointer hover:bg-base-300"
+                  onClick={() => handleLoadHistoryItem(item)}
+                >
+                  <div className="mb-2">
+                    <div className="flex justify-between items-center">
+                      <p className="font-medium text-black">{item.prompt}</p>
+                      <span className="text-xs text-gray-500">
+                        {formatDate(item.timestamp)}
+                      </span>
+                    </div>
+                    <div className="flex space-x-2 mt-1">
+                      <span className="text-xs bg-gray-200 px-1 rounded">
+                        {item.size}
+                      </span>
+                      <span className="text-xs bg-gray-200 px-1 rounded">
+                        {item.imageUrls.length} images
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {item.imageUrls.map((url, idx) => (
+                      <div
+                        key={idx}
+                        className="relative aspect-square overflow-hidden rounded-lg"
+                      >
+                        <img
+                          src={url}
+                          alt={`Generated image ${idx + 1} for "${
+                            item.prompt
+                          }"`}
+                          className="object-cover w-full h-full"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-gray-500 mb-4">
+              {images.length} {images.length === 1 ? "image" : "images"}{" "}
+              generated
+            </p>
+
+            <div className="grid grid-cols-2 gap-4">
+              {images.map((imageUrl, index) => (
+                <div
+                  key={index}
+                  className="relative aspect-square overflow-hidden rounded-lg"
+                >
+                  <img
+                    src={imageUrl}
+                    alt={`Generated image ${index + 1}`}
+                    className="object-cover w-full h-full"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {history.length > 0 && (
+              <div className="text-center mt-4">
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={() => setShowFullHistory(true)}
+                >
+                  View All Previous Generations
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

@@ -3,9 +3,30 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 
+// Interface for history items
+interface HistoryItem {
+  id: string;
+  prompt: string;
+  style: string;
+  size: string;
+  imageUrls: string[];
+  timestamp: number;
+}
+
 interface ImageGeneratorProps {
   currentStyle: string;
-  addImage: (imageUrl: string) => void;
+  addImage: (
+    imageUrl: string,
+    prompt?: string,
+    style?: string,
+    size?: string
+  ) => void;
+  history?: HistoryItem[];
+  onLoadHistoryItem?: (item: HistoryItem) => {
+    prompt: string;
+    style: string;
+    size: string;
+  };
 }
 
 interface FormData {
@@ -17,12 +38,15 @@ interface FormData {
 export default function ImageGenerator({
   currentStyle,
   addImage,
+  history = [],
+  onLoadHistoryItem,
 }: ImageGeneratorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedImageUrls, setGeneratedImageUrls] = useState<string[]>([]);
   const [generationProgress, setGenerationProgress] = useState<number[]>([]);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const { register, handleSubmit, watch, setValue } = useForm<FormData>({
     defaultValues: {
@@ -41,6 +65,7 @@ export default function ImageGenerator({
   }, [setValue]);
 
   const currentPrompt = watch("prompt");
+  const currentSize = watch("size");
   const apiKey = watch("apiKey");
 
   // Save API key to localStorage when it changes
@@ -122,8 +147,13 @@ export default function ImageGenerator({
                     return newUrls;
                   });
 
-                  // Add to gallery
-                  addImage(eventData.imageUrl);
+                  // Add to gallery with additional metadata
+                  addImage(
+                    eventData.imageUrl,
+                    data.prompt,
+                    currentStyle,
+                    data.size
+                  );
 
                   // Update progress
                   setGenerationProgress((prev) => {
@@ -172,6 +202,19 @@ export default function ImageGenerator({
     }
   };
 
+  const loadHistoryItem = (item: HistoryItem) => {
+    if (onLoadHistoryItem) {
+      const { prompt, size } = onLoadHistoryItem(item);
+      setValue("prompt", prompt);
+      setValue("size", size);
+      setShowHistory(false); // Close history panel after selection
+    }
+  };
+
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString();
+  };
+
   return (
     <div className="card bg-base-100 shadow-xl">
       <div className="card-body">
@@ -202,9 +245,20 @@ export default function ImageGenerator({
           </div>
 
           <div className="form-control">
-            <label className="label">
-              <span className="label-text">Prompt</span>
-            </label>
+            <div className="flex justify-between items-center">
+              <label className="label">
+                <span className="label-text">Prompt</span>
+              </label>
+              {history.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-xs btn-ghost"
+                  onClick={() => setShowHistory(!showHistory)}
+                >
+                  {showHistory ? "Hide History" : "Show History"}
+                </button>
+              )}
+            </div>
             <textarea
               className="textarea textarea-bordered h-24 text-black"
               placeholder="Describe what you want to see in the image..."
@@ -227,6 +281,41 @@ export default function ImageGenerator({
               </div>
             )}
           </div>
+
+          {/* History panel */}
+          {showHistory && history.length > 0 && (
+            <div className="bg-gray-100 p-3 rounded-lg mt-2 mb-2 max-h-64 overflow-y-auto">
+              <h3 className="font-medium mb-2">Prompt History</h3>
+              <div className="space-y-2">
+                {history.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white p-2 rounded cursor-pointer hover:bg-blue-50 text-black"
+                    onClick={() => loadHistoryItem(item)}
+                  >
+                    <p className="font-medium text-sm truncate">
+                      {item.prompt}
+                    </p>
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="flex space-x-2">
+                        <span className="text-xs bg-gray-200 px-1 rounded">
+                          {item.size}
+                        </span>
+                        {item.imageUrls.length > 0 && (
+                          <span className="text-xs bg-gray-200 px-1 rounded">
+                            {item.imageUrls.length} images
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {formatDate(item.timestamp)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="form-control">
             <label className="label">
