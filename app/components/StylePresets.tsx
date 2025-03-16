@@ -65,26 +65,110 @@ const STYLE_PRESETS = [
 ];
 
 export default function StylePresets({ setCurrentStyle }: StylePresetsProps) {
-  const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [customStyle, setCustomStyle] = useState("");
 
   const handleStyleSelect = (styleId: string, stylePrompt: string) => {
-    setSelectedStyle(styleId);
-
+    // If custom style is selected, handle it separately
     if (styleId === "custom") {
+      setSelectedStyles(["custom"]);
       setCurrentStyle(customStyle);
+      return;
+    }
+
+    // If the style is already selected, remove it
+    if (selectedStyles.includes(styleId)) {
+      const newSelectedStyles = selectedStyles.filter((s) => s !== styleId);
+      setSelectedStyles(newSelectedStyles);
+
+      if (newSelectedStyles.length === 0) {
+        // No styles selected
+        setCurrentStyle("");
+      } else if (newSelectedStyles.length === 1) {
+        // Only one style selected
+        const singleStyle = newSelectedStyles[0];
+        if (singleStyle === "custom") {
+          setCurrentStyle(customStyle);
+        } else {
+          const styleObj = STYLE_PRESETS.find((s) => s.id === singleStyle);
+          setCurrentStyle(styleObj?.prompt || "");
+        }
+      }
+      return;
+    }
+
+    // If we already have 2 styles and trying to add another, replace the second one
+    let newSelectedStyles;
+    if (selectedStyles.length >= 2) {
+      newSelectedStyles = [selectedStyles[0], styleId];
     } else {
+      // Add the new style
+      newSelectedStyles = [...selectedStyles, styleId];
+    }
+
+    setSelectedStyles(newSelectedStyles);
+
+    // If only one style is selected, use it directly
+    if (newSelectedStyles.length === 1) {
       setCurrentStyle(stylePrompt);
+    } else if (newSelectedStyles.length === 2) {
+      // Automatically merge the styles when two are selected
+      const style1 =
+        newSelectedStyles[0] === "custom"
+          ? customStyle
+          : STYLE_PRESETS.find((s) => s.id === newSelectedStyles[0])?.prompt ||
+            "";
+
+      const style2 =
+        newSelectedStyles[1] === "custom"
+          ? customStyle
+          : STYLE_PRESETS.find((s) => s.id === newSelectedStyles[1])?.prompt ||
+            "";
+
+      setCurrentStyle(`${style1}, combined with ${style2}`);
     }
   };
 
   const handleCustomStyleChange = (
     e: React.ChangeEvent<HTMLTextAreaElement>
   ) => {
-    setCustomStyle(e.target.value);
-    if (selectedStyle === "custom") {
-      setCurrentStyle(e.target.value);
+    const newCustomStyle = e.target.value;
+    setCustomStyle(newCustomStyle);
+
+    if (selectedStyles.includes("custom")) {
+      // If we have custom style selected along with another style
+      if (selectedStyles.length === 2) {
+        const otherStyleIndex = selectedStyles[0] === "custom" ? 1 : 0;
+        const otherStyleId = selectedStyles[otherStyleIndex];
+        const otherStyle =
+          STYLE_PRESETS.find((s) => s.id === otherStyleId)?.prompt || "";
+
+        if (selectedStyles[0] === "custom") {
+          setCurrentStyle(`${newCustomStyle}, combined with ${otherStyle}`);
+        } else {
+          setCurrentStyle(`${otherStyle}, combined with ${newCustomStyle}`);
+        }
+      } else {
+        // Just custom style alone
+        setCurrentStyle(newCustomStyle);
+      }
     }
+  };
+
+  const getMergedStylePrompt = () => {
+    if (selectedStyles.length !== 2) return "";
+
+    const style1 =
+      selectedStyles[0] === "custom"
+        ? customStyle
+        : STYLE_PRESETS.find((s) => s.id === selectedStyles[0])?.prompt || "";
+
+    const style2 =
+      selectedStyles[1] === "custom"
+        ? customStyle
+        : STYLE_PRESETS.find((s) => s.id === selectedStyles[1])?.prompt || "";
+
+    return `${style1}, combined with ${style2}`;
   };
 
   return (
@@ -92,7 +176,7 @@ export default function StylePresets({ setCurrentStyle }: StylePresetsProps) {
       <div className="card-body">
         <h2 className="card-title text-black">Style Presets</h2>
         <p className="text-sm text-gray-500 mb-4">
-          Select a style preset to ensure consistent image generation
+          Select up to two styles to apply or combine
         </p>
 
         <div className="grid grid-cols-2 gap-2 mb-4">
@@ -100,7 +184,7 @@ export default function StylePresets({ setCurrentStyle }: StylePresetsProps) {
             <button
               key={style.id}
               className={`btn btn-outline ${
-                selectedStyle === style.id ? "btn-primary" : ""
+                selectedStyles.includes(style.id) ? "btn-primary" : ""
               }`}
               onClick={() => handleStyleSelect(style.id, style.prompt)}
             >
@@ -109,7 +193,7 @@ export default function StylePresets({ setCurrentStyle }: StylePresetsProps) {
           ))}
         </div>
 
-        {selectedStyle === "custom" && (
+        {selectedStyles.includes("custom") && (
           <div className="form-control">
             <label className="label">
               <span className="label-text">Custom Style Description</span>
@@ -123,17 +207,39 @@ export default function StylePresets({ setCurrentStyle }: StylePresetsProps) {
           </div>
         )}
 
-        {selectedStyle && selectedStyle !== "custom" && (
-          <div className="bg-base-200 p-3 rounded-lg mt-2 text-black">
-            <p className="text-sm font-medium mb-1">
-              {STYLE_PRESETS.find((s) => s.id === selectedStyle)?.name}
-            </p>
-            <p className="text-xs text-gray-500 mb-2">
-              {STYLE_PRESETS.find((s) => s.id === selectedStyle)?.description}
-            </p>
-            <p className="text-xs italic">
-              "{STYLE_PRESETS.find((s) => s.id === selectedStyle)?.prompt}"
-            </p>
+        {/* Display selected styles */}
+        <div className="mt-4">
+          <h3 className="font-medium mb-2">
+            Selected Styles ({selectedStyles.length}/2):
+          </h3>
+          <div className="space-y-2">
+            {selectedStyles.map((styleId, index) => {
+              const style = STYLE_PRESETS.find((s) => s.id === styleId);
+              if (!style) return null;
+
+              return (
+                <div
+                  key={index}
+                  className="bg-base-200 p-3 rounded-lg text-black"
+                >
+                  <p className="text-sm font-medium mb-1">{style.name}</p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    {style.description}
+                  </p>
+                  <p className="text-xs italic">
+                    "{styleId === "custom" ? customStyle : style.prompt}"
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Display the merged style preview */}
+        {selectedStyles.length === 2 && (
+          <div className="bg-base-300 p-3 rounded-lg mt-4 text-black">
+            <p className="text-sm font-medium mb-1">Merged Style:</p>
+            <p className="text-xs italic">"{getMergedStylePrompt()}"</p>
           </div>
         )}
       </div>

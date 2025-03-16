@@ -212,11 +212,16 @@ export default function ImageGenerator({
             />
             {currentStyle && (
               <div className="mt-2 text-sm text-gray-500">
-                Style: <span className="font-medium">{currentStyle}</span>
+                <span className="font-medium">
+                  {currentStyle.includes("combined with")
+                    ? "Merged Styles:"
+                    : "Selected Style:"}
+                </span>
+                {currentStyle}
               </div>
             )}
             {getFullPrompt() && currentStyle && (
-              <div className="mt-2 text-sm text-black">
+              <div className="mt-2 p-2 bg-gray-100 rounded-md text-sm text-black">
                 <span className="font-medium">Full prompt:</span>{" "}
                 {getFullPrompt()}
               </div>
