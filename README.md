@@ -10,6 +10,7 @@ This is a Next.js application that uses the OpenAI API to generate images with c
 ## Prerequisites
 
 - Node.js 18.x or later
+- pnpm (Package manager)
 - An OpenAI API key with access to DALL-E 3
 
 ## Getting Started
@@ -24,7 +25,7 @@ This is a Next.js application that uses the OpenAI API to generate images with c
 2. Install dependencies:
 
    ```bash
-   npm install
+   pnpm install
    ```
 
 3. Create a `.env.local` file in the root directory with your OpenAI API key:
@@ -36,7 +37,7 @@ This is a Next.js application that uses the OpenAI API to generate images with c
 4. Start the development server:
 
    ```bash
-   npm run dev
+   pnpm run dev
    ```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
